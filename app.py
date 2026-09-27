@@ -6,6 +6,11 @@ from pathlib import Path
 
 import streamlit as st
 
+try:
+    import google.generativeai as genai
+except ImportError:  # pragma: no cover
+    genai = None
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -40,10 +45,69 @@ def remove_file_if_exists(file_path: str | None) -> None:
         target.unlink()
 
 
+def build_library_context(items: list) -> str:
+    if not items:
+        return "Belum ada referensi buku atau jurnal di library."
+
+    lines = []
+    for item in items:
+        title = item.get("title", "Judul tidak tersedia")
+        author = item.get("author", "Penulis tidak tersedia")
+        kind = item.get("type", "book")
+        year = item.get("year", "-")
+        description = item.get("description", "")
+        file_name = item.get("file_name", "")
+
+        lines.append(
+            f"- {title} oleh {author} ({kind}, tahun {year}). "
+            f"Deskripsi: {description or 'Tidak ada deskripsi.'}. "
+            f"File: {file_name if file_name else 'tidak ada file'}"
+        )
+
+    return "\n".join(lines)
+
+
+def build_chat_prompt(question: str, items: list) -> str:
+    context = build_library_context(items)
+    return (
+        "Anda adalah guru tutor dan pustakawan pada StudyBuddy Library. "
+        "Bantulah pengguna memahami buku dan jurnal menggunakan referensi yang ada di library. "
+        "Gunakan bahasa akademis, mudah dipahami, dan tidak berbelit-belit. "
+        "Jawaban harus berfokus pada isi buku/jurnal, inti materi, poin penting, dan cara belajar. "
+        "Jika informasi tidak ada di library, jelaskan bahwa referensi belum tersedia dan sarankan cara belajar yang aman.\n\n"
+        f"Referensi library:\n{context}\n\n"
+        f"Pertanyaan user:\n{question}"
+    )
+
+
+def ask_gemini(question: str, api_key: str, model_name: str, temperature: float, items: list) -> str:
+    if not api_key:
+        return "Masukkan API key Gemini terlebih dahulu di sidebar agar chatbot dapat menjawab."
+
+    if genai is None:
+        return "Paket google-generativeai belum terpasang. Instal ulang requirements.txt agar fitur chatbot aktif."
+
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=model_name,
+            generation_config={
+                "temperature": min(max(float(temperature), 0.0), 1.0),
+                "top_p": 0.95,
+            },
+        )
+        response = model.generate_content(build_chat_prompt(question, items))
+        return getattr(response, "text", "Maaf, chatbot tidak dapat menghasilkan jawaban saat ini.")
+    except Exception as exc:  # pragma: no cover - runtime API issue
+        return f"Chatbot gagal menjawab: {exc}"
+
+
 st.set_page_config(page_title="StudyBuddy Library", page_icon="📚", layout="wide")
 
 st.title("📚 StudyBuddy Library")
 st.caption("Aplikasi perpustakaan mini untuk buku dan jurnal yang bisa dideploy ke Streamlit")
+
+items = load_library()
 
 with st.form("library_form", clear_on_submit=True):
     col1, col2 = st.columns(2)
@@ -56,7 +120,10 @@ with st.form("library_form", clear_on_submit=True):
     with col2:
         year = st.number_input("Tahun", min_value=1900, max_value=2100, value=datetime.now().year)
         description = st.text_area("Deskripsi", placeholder="Ringkasan singkat...")
-        uploaded_file = st.file_uploader("Upload file buku/jurnal", type=["pdf", "doc", "docx", "txt", "ppt", "pptx", "png", "jpg", "jpeg"])
+        uploaded_file = st.file_uploader(
+            "Upload file buku/jurnal",
+            type=["pdf", "doc", "docx", "txt", "ppt", "pptx", "png", "jpg", "jpeg"],
+        )
 
     submitted = st.form_submit_button("Simpan data")
 
@@ -129,6 +196,39 @@ else:
                     st.success("Item berhasil dihapus.")
                     st.rerun()
 
-st.sidebar.header("Info")
-st.sidebar.write(f"Total item: {len(items)}")
-st.sidebar.write("Folder penyimpanan file: uploads/")
+st.sidebar.header("AI Tutor Library")
+st.sidebar.caption("Guru tutor dan pustakawan yang menjawab berdasarkan referensi library")
+
+def get_api_key() -> str:
+    if "GOOGLE_API_KEY" in st.secrets:
+        return st.secrets["GOOGLE_API_KEY"]
+    return ""
+
+api_key = st.sidebar.text_input("Gemini API Key", type="password", value=get_api_key(), help="Bisa diisi manual atau lewat st.secrets")
+model_name = st.sidebar.text_input("Model Gemini", value="gemini-1.5-flash", help="Contoh: gemini-1.5-flash")
+temperature = st.sidebar.slider("Temperature", min_value=0.0, max_value=5.0, value=5.0, step=0.1, help="Nilai di API akan dibatasi ke rentang valid (0-1) untuk Gemini")
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+st.sidebar.write(f"Total item library: {len(items)}")
+
+st.subheader("Chatbot Tutor")
+
+for chat in st.session_state.chat_history:
+    with st.chat_message(chat["role"]):
+        st.markdown(chat["content"])
+
+prompt = st.chat_input("Tanya tentang isi buku/jurnal dari library...", key="library_chat")
+
+if prompt:
+    st.session_state.chat_history.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    answer = ask_gemini(prompt, api_key, model_name, temperature, items)
+    st.session_state.chat_history.append({"role": "assistant", "content": answer})
+    with st.chat_message("assistant"):
+        st.markdown(answer)
+
+st.sidebar.write("Catatan: user dapat menambahkan API key sendiri untuk chatbot.")
