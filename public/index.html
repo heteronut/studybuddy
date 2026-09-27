@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StudyBuddy Library</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">StudyBuddy</p>
+          <h1>Perpustakaan Mini</h1>
+        </div>
+      </header>
+
+      <main class="layout">
+        <section class="panel form-panel">
+          <h2>Tambah Buku / Jurnal</h2>
+          <form id="library-form">
+            <div class="field-group">
+              <label for="title">Judul</label>
+              <input id="title" name="title" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="author">Penulis</label>
+              <input id="author" name="author" type="text" required />
+            </div>
+
+            <div class="field-row">
+              <div class="field-group">
+                <label for="type">Tipe</label>
+                <select id="type" name="type" required>
+                  <option value="book">Buku</option>
+                  <option value="journal">Jurnal</option>
+                </select>
+              </div>
+
+              <div class="field-group">
+                <label for="year">Tahun</label>
+                <input id="year" name="year" type="number" min="1900" max="2100" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label for="description">Deskripsi</label>
+              <textarea id="description" name="description" rows="4"></textarea>
+            </div>
+
+            <div class="field-group">
+              <label for="file">File Buku / Jurnal</label>
+              <input id="file" name="file" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.txt,.jpg,.jpeg,.png" />
+            </div>
+
+            <button type="submit" class="primary-btn">Simpan</button>
+          </form>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="header-row">
+            <h2>Daftar Koleksi</h2>
+            <span id="count-badge" class="count-badge">0 item</span>
+          </div>
+          <div id="empty-state" class="empty-state">Belum ada data buku atau jurnal.</div>
+          <div id="library-list" class="library-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

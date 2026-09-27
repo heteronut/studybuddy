@@ -1,0 +1,16 @@
+{
+  "name": "studybuddy-library",
+  "version": "1.0.0",
+  "description": "Mini library app for storing books and journals",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^2.0.0"
+  }
+}
